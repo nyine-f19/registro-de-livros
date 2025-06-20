@@ -64,7 +64,7 @@
         </div>
 
         <!-- Seção de Livros -->
-        <div id="bookList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div id="bookList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <!-- Cards de livros serão inseridos aqui -->
         </div>
         
@@ -110,7 +110,12 @@
                         </div>
                          <div class="mb-4">
                             <label for="coverUrl" class="block mb-1 font-semibold text-gray-300">URL da Capa</label>
-                            <input type="url" id="coverUrl" placeholder="https://exemplo.com/capa.jpg" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
+                            <input type="url" id="coverUrl" placeholder="Cole uma URL ou envie um arquivo" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
+                        </div>
+                         <div class="mb-4">
+                            <label for="coverImageFile" class="block mb-1 font-semibold text-gray-300">Ou envie da galeria</label>
+                            <input type="file" id="coverImageFile" accept="image/*" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-800 file:text-white hover:file:bg-red-700 cursor-pointer">
+                            <img id="coverPreview" src="" alt="Pré-visualização da capa" class="mt-4 rounded-lg hidden w-32 h-48 object-cover mx-auto"/>
                         </div>
                     </div>
 
@@ -134,7 +139,7 @@
                                     <span id="generateBtnText">Gerar com IA</span>
                                 </button>
                             </div>
-                            <textarea id="summary" rows="6" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-300 focus:ring-2 focus:ring-red-600"></textarea>
+                            <textarea id="summary" rows="8" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-300 focus:ring-2 focus:ring-red-600"></textarea>
                         </div>
                     </div>
                 </div>
@@ -187,6 +192,7 @@
         let booksUnsubscribe = null;
         let booksCache = [];
         let bookToDeleteId = null;
+        let uploadedCoverDataUrl = null; // Armazena a imagem de capa como Base64
 
         // Elementos da UI
         const bookModal = document.getElementById('bookModal');
@@ -197,6 +203,8 @@
         const loadingState = document.getElementById('loadingState');
         const deleteConfirmationModal = document.getElementById('deleteConfirmationModal');
         const generateSummaryBtn = document.getElementById('generateSummaryBtn');
+        const coverImageFile = document.getElementById('coverImageFile');
+        const coverPreview = document.getElementById('coverPreview');
 
 
         // Função para chamar a API do Gemini
@@ -340,7 +348,6 @@
                 
             }, (error) => {
                 console.error("Erro ao carregar livros: ", error);
-                // **CORREÇÃO: Adiciona mensagem de erro detalhada para o usuário sobre permissões**
                 if (error.code === 'permission-denied') {
                      loadingState.innerHTML = `
                         <div class="text-red-400 font-bold p-4 border border-red-500 rounded-lg bg-red-900/20 max-w-2xl mx-auto">
@@ -381,11 +388,11 @@ service cloud.firestore {
                 const card = document.createElement('div');
                 card.className = 'bg-gray-900 rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-300 book-card border border-gray-800';
                 card.innerHTML = `
-                    <img src="${book.coverUrl || 'https://placehold.co/400x600/b91c1c/ffffff?text=Capa'}" alt="Capa de ${book.title}" class="w-full h-64 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x600/1f2937/ffffff?text=Erro!';">
+                    <img src="${book.coverUrl || 'https://placehold.co/400x600/b91c1c/ffffff?text=Capa'}" alt="Capa de ${book.title}" class="w-full h-52 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x600/1f2937/ffffff?text=Erro!';">
                     <div class="p-4 flex flex-col flex-grow">
                         <div>
-                            <h3 class="text-xl font-bold text-white">${book.title}</h3>
-                            <p class="text-gray-400 mb-2">${book.author} ${pubYear}</p>
+                            <h3 class="text-lg font-bold text-white">${book.title}</h3>
+                            <p class="text-sm text-gray-400 mb-2">${book.author} ${pubYear}</p>
                             <p class="text-amber-500 text-lg mb-2" title="${book.rating || 0} de 5 estrelas">${ratingStars}</p>
                             <p class="text-sm text-gray-400 flex-grow">${(book.summary || '').substring(0, 100)}${ (book.summary || '').length > 100 ? '...' : ''}</p>
                         </div>
@@ -404,6 +411,12 @@ service cloud.firestore {
             bookForm.reset();
             document.getElementById('bookId').value = '';
             document.querySelectorAll('.star-rating input').forEach(r => r.checked = false);
+            
+            // Limpa pré-visualização da capa
+            coverPreview.classList.add('hidden');
+            coverPreview.src = '';
+            uploadedCoverDataUrl = null;
+            coverImageFile.value = '';
 
             if (show) {
                 if (book) {
@@ -413,11 +426,20 @@ service cloud.firestore {
                     document.getElementById('author').value = book.author;
                     document.getElementById('publisher').value = book.publisher || '';
                     document.getElementById('pubYear').value = book.pubYear || '';
-                    document.getElementById('coverUrl').value = book.coverUrl || '';
                     document.getElementById('summary').value = book.summary || '';
                     if (book.rating) {
                         document.getElementById(`star${book.rating}`).checked = true;
                     }
+                    // Mostra a capa existente (URL ou Base64)
+                    if (book.coverUrl) {
+                        if (book.coverUrl.startsWith('data:image')) {
+                            coverPreview.src = book.coverUrl;
+                            coverPreview.classList.remove('hidden');
+                        } else {
+                            document.getElementById('coverUrl').value = book.coverUrl;
+                        }
+                    }
+
                 } else {
                     document.getElementById('modalTitle').textContent = 'Adicionar Novo Livro';
                 }
@@ -442,18 +464,37 @@ service cloud.firestore {
         document.getElementById('addBookBtn').addEventListener('click', () => toggleModal(true));
         document.getElementById('cancelBtn').addEventListener('click', () => toggleModal(false));
         generateSummaryBtn.addEventListener('click', handleGenerateSummary);
+        
+        // Listener para o upload de arquivo da capa
+        coverImageFile.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    uploadedCoverDataUrl = e.target.result;
+                    coverPreview.src = uploadedCoverDataUrl;
+                    coverPreview.classList.remove('hidden');
+                    document.getElementById('coverUrl').value = ''; // Limpa o campo de URL
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
 
         bookForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('bookId').value;
             const ratingInput = document.querySelector('input[name="rating"]:checked');
             
+            // Prioriza a imagem de upload sobre a URL
+            let coverUrlValue = uploadedCoverDataUrl || document.getElementById('coverUrl').value;
+
             const bookData = {
                 title: document.getElementById('title').value,
                 author: document.getElementById('author').value,
                 publisher: document.getElementById('publisher').value,
                 pubYear: document.getElementById('pubYear').value,
-                coverUrl: document.getElementById('coverUrl').value,
+                coverUrl: coverUrlValue,
                 summary: document.getElementById('summary').value,
                 rating: ratingInput ? parseInt(ratingInput.value) : 0,
             };
@@ -470,6 +511,7 @@ service cloud.firestore {
                 toggleModal(false);
             } catch (error) {
                 console.error("Erro ao salvar livro: ", error);
+                alert("Ocorreu um erro ao salvar o livro. Verifique o console.");
             }
         });
         
