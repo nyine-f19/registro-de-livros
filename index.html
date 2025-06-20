@@ -31,6 +31,11 @@
             flex-direction: column;
             justify-content: space-between;
         }
+        .category-btn.active {
+            background-color: #991b1b; /* red-800 */
+            color: white;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-300">
@@ -39,13 +44,13 @@
     <div class="container mx-auto max-w-7xl px-4 py-8">
         
         <!-- Informação do Utilizador e Logout -->
-        <div id="user-info-container" class="absolute top-4 right-4 flex items-center gap-4 hidden">
+        <div id="user-info-container" class="absolute top-4 right-4 flex items-center gap-2 sm:gap-4 hidden">
             <div class="text-right">
-                <p id="user-name" class="font-semibold text-white"></p>
-                <p id="user-email" class="text-sm text-gray-400"></p>
+                <p id="user-name" class="font-semibold text-white text-sm sm:text-base"></p>
+                <p id="user-email" class="text-xs text-gray-400 hidden sm:block"></p>
             </div>
-            <img id="user-photo" class="w-12 h-12 rounded-full border-2 border-red-700" alt="Foto do utilizador">
-            <button id="logout-btn" class="bg-gray-700 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+            <img id="user-photo" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-red-700" alt="Foto do utilizador">
+            <button id="logout-btn" class="bg-gray-700 hover:bg-red-800 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded-lg transition-colors">
                 Sair
             </button>
         </div>
@@ -84,6 +89,11 @@
                 </button>
             </div>
 
+            <!-- Filtro de Categorias -->
+            <div id="category-filters" class="mb-8 flex flex-wrap gap-2 justify-center">
+                <!-- Botões de categoria serão inseridos aqui -->
+            </div>
+
             <!-- Seção de Livros -->
             <div id="bookList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <!-- Cards de livros serão inseridos aqui -->
@@ -118,6 +128,12 @@
                         <div class="mb-4">
                             <label for="author" class="block mb-1 font-semibold text-gray-300">Autor</label>
                             <input type="text" id="author" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="category" class="block mb-1 font-semibold text-gray-300">Categoria</label>
+                            <select id="category" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
+                                <!-- Opções de categoria serão inseridas aqui -->
+                            </select>
                         </div>
                         <div class="grid grid-cols-2 gap-4 mb-4">
                             <div>
@@ -214,6 +230,9 @@
         let booksCache = [];
         let bookToDeleteId = null;
         let uploadedCoverDataUrl = null;
+        let activeCategory = 'Todos'; // Nova variável para o filtro ativo
+
+        const categories = ['Ficção', 'Não Ficção', 'Romance', 'Fantasia', 'Suspense', 'Biografia', 'Poesia', 'Outro'];
 
         // Elementos da UI
         const mainContent = document.getElementById('main-content');
@@ -225,6 +244,7 @@
         const userNameEl = document.getElementById('user-name');
         const userEmailEl = document.getElementById('user-email');
         const userPhotoEl = document.getElementById('user-photo');
+        const categoryFiltersContainer = document.getElementById('category-filters');
         const bookModal = document.getElementById('bookModal');
         const bookForm = document.getElementById('bookForm');
         const bookList = document.getElementById('bookList');
@@ -235,6 +255,7 @@
         const generateSummaryBtn = document.getElementById('generateSummaryBtn');
         const coverImageFile = document.getElementById('coverImageFile');
         const coverPreview = document.getElementById('coverPreview');
+        const categorySelect = document.getElementById('category');
 
 
         // Função para chamar a API do Gemini
@@ -297,6 +318,7 @@
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
+            renderCategoryUI();
             handleAuthentication();
         }
 
@@ -366,13 +388,53 @@
             bookList.innerHTML = ''; // Limpa a lista de livros
         }
         
-        // Carrega os livros do Firestore
+        // --- LÓGICA DE CATEGORIAS ---
+        function renderCategoryUI() {
+            // Renderiza os botões de filtro
+            categoryFiltersContainer.innerHTML = '';
+            const allCategories = ['Todos', ...categories];
+            allCategories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.textContent = cat;
+                btn.dataset.category = cat;
+                btn.className = 'category-btn px-3 py-1 text-sm rounded-full bg-gray-800 text-gray-300 hover:bg-red-900 transition-colors';
+                if (cat === activeCategory) {
+                    btn.classList.add('active');
+                }
+                categoryFiltersContainer.appendChild(btn);
+            });
+
+            // Preenche o select do modal
+            categorySelect.innerHTML = categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+        }
+        
+        // --- LÓGICA DOS LIVROS ---
+        function applyFiltersAndRender() {
+            let filteredBooks = booksCache;
+
+            // 1. Filtrar por categoria
+            if (activeCategory !== 'Todos') {
+                filteredBooks = filteredBooks.filter(book => book.category === activeCategory);
+            }
+
+            // 2. Filtrar por pesquisa
+            const searchTerm = searchInput.value.toLowerCase();
+            if (searchTerm) {
+                filteredBooks = filteredBooks.filter(book => 
+                    book.title.toLowerCase().includes(searchTerm) || 
+                    book.author.toLowerCase().includes(searchTerm)
+                );
+            }
+
+            renderBooks(filteredBooks);
+        }
+
         function loadBooks() {
             if (booksUnsubscribe) booksUnsubscribe();
             
             loadingState.classList.remove('hidden');
             emptyState.classList.add('hidden');
-            bookList.classList.add('hidden');
+            bookList.innerHTML = '';
 
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const booksCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/books`);
@@ -381,15 +443,7 @@
             booksUnsubscribe = onSnapshot(q, (snapshot) => {
                 loadingState.classList.add('hidden');
                 booksCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderBooks(booksCache);
-                
-                if (booksCache.length === 0) {
-                    emptyState.classList.remove('hidden');
-                    bookList.classList.add('hidden');
-                } else {
-                    emptyState.classList.add('hidden');
-                    bookList.classList.remove('hidden');
-                }
+                applyFiltersAndRender();
                 
             }, (error) => {
                 console.error("Erro ao carregar livros: ", error);
@@ -397,9 +451,16 @@
             });
         }
 
-        // Renderiza os livros na tela
         function renderBooks(booksToRender) {
             bookList.innerHTML = '';
+            if (booksToRender.length === 0) {
+                emptyState.classList.remove('hidden');
+                bookList.classList.add('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                bookList.classList.remove('hidden');
+            }
+
             booksToRender.forEach(book => {
                 const pubYear = book.pubYear ? `(${book.pubYear})` : '';
                 const ratingStars = '★'.repeat(book.rating || 0) + '☆'.repeat(5 - (book.rating || 0));
@@ -408,14 +469,14 @@
                 card.className = 'bg-gray-900 rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-300 book-card border border-gray-800';
                 card.innerHTML = `
                     <img src="${book.coverUrl || 'https://placehold.co/400x600/b91c1c/ffffff?text=Capa'}" alt="Capa de ${book.title}" class="w-full h-52 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x600/1f2937/ffffff?text=Erro!';">
-                    <div class="p-4 flex flex-col flex-grow">
+                    <div class="p-3 flex flex-col flex-grow">
                         <div>
-                            <h3 class="text-lg font-bold text-white">${book.title}</h3>
+                            <h3 class="text-lg font-bold text-white leading-tight">${book.title}</h3>
                             <p class="text-sm text-gray-400 mb-2">${book.author} ${pubYear}</p>
+                             <p class="text-xs text-red-400 font-semibold mb-2">${book.category || 'Sem Categoria'}</p>
                             <p class="text-amber-500 text-lg mb-2" title="${book.rating || 0} de 5 estrelas">${ratingStars}</p>
-                            <p class="text-sm text-gray-400 flex-grow">${(book.summary || '').substring(0, 100)}${ (book.summary || '').length > 100 ? '...' : ''}</p>
                         </div>
-                         <div class="mt-4 flex justify-end gap-3">
+                         <div class="mt-auto pt-2 flex justify-end gap-3">
                             <button class="edit-btn text-gray-400 hover:text-white transition-colors" data-id="${book.id}"><i class="fas fa-edit"></i></button>
                             <button class="delete-btn text-gray-400 hover:text-red-500 transition-colors" data-id="${book.id}"><i class="fas fa-trash"></i></button>
                         </div>
@@ -425,7 +486,6 @@
             });
         }
         
-        // Abre e fecha o modal de livro
         function toggleModal(show, book = null) {
             bookForm.reset();
             document.getElementById('bookId').value = '';
@@ -435,6 +495,7 @@
             coverPreview.src = '';
             uploadedCoverDataUrl = null;
             coverImageFile.value = '';
+            categorySelect.value = categories[0];
 
             if (show) {
                 if (book) {
@@ -445,9 +506,9 @@
                     document.getElementById('publisher').value = book.publisher || '';
                     document.getElementById('pubYear').value = book.pubYear || '';
                     document.getElementById('summary').value = book.summary || '';
-                    if (book.rating) {
-                        document.getElementById(`star${book.rating}`).checked = true;
-                    }
+                    categorySelect.value = book.category || categories[0];
+
+                    if (book.rating) document.getElementById(`star${book.rating}`).checked = true;
                     if (book.coverUrl) {
                         if (book.coverUrl.startsWith('data:image')) {
                             coverPreview.src = book.coverUrl;
@@ -456,7 +517,6 @@
                             document.getElementById('coverUrl').value = book.coverUrl;
                         }
                     }
-
                 } else {
                     document.getElementById('modalTitle').textContent = 'Adicionar Novo Livro';
                 }
@@ -482,6 +542,18 @@
         document.getElementById('addBookBtn').addEventListener('click', () => toggleModal(true));
         document.getElementById('cancelBtn').addEventListener('click', () => toggleModal(false));
         generateSummaryBtn.addEventListener('click', handleGenerateSummary);
+        
+        searchInput.addEventListener('input', applyFiltersAndRender);
+
+        categoryFiltersContainer.addEventListener('click', (e) => {
+            if(e.target.matches('.category-btn')) {
+                activeCategory = e.target.dataset.category;
+                // Atualiza o visual dos botões
+                document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                applyFiltersAndRender();
+            }
+        });
         
         coverImageFile.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -510,6 +582,7 @@
                 coverUrl: coverUrlValue,
                 summary: document.getElementById('summary').value,
                 rating: ratingInput ? parseInt(ratingInput.value) : 0,
+                category: categorySelect.value
             };
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionPath = `artifacts/${appId}/users/${userId}/books`;
@@ -549,15 +622,6 @@
                     console.error("Erro ao excluir livro: ", error);
                 }
             }
-        });
-
-        searchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filteredBooks = booksCache.filter(book => 
-                book.title.toLowerCase().includes(searchTerm) || 
-                book.author.toLowerCase().includes(searchTerm)
-            );
-            renderBooks(filteredBooks);
         });
 
         // Inicia tudo
