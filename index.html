@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Diário de Leitura</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.7);
+        }
+        .star-rating input[type="radio"] { display: none; }
+        .star-rating label {
+            font-size: 2rem;
+            color: #4b5563; /* gray-600 */
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .star-rating input[type="radio"]:checked ~ label,
+        .star-rating label:hover,
+        .star-rating label:hover ~ label {
+            color: #f59e0b; /* amber-500 */
+        }
+        .book-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-300">
+
+    <!-- Container Principal -->
+    <div class="container mx-auto max-w-7xl px-4 py-8">
+
+        <!-- Cabeçalho -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-white">Meu Diário de Leitura</h1>
+            <p class="text-gray-400 mt-2">Anote, avalie e relembre suas aventuras literárias.</p>
+        </header>
+
+        <!-- Barra de Ações -->
+        <div class="flex flex-col md:flex-row gap-4 mb-8">
+            <div class="relative flex-grow">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <i class="fas fa-search text-gray-500"></i>
+                </span>
+                <input type="text" id="searchInput" placeholder="Buscar por título ou autor..." class="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-900 border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600 text-gray-200">
+            </div>
+            <button id="addBookBtn" class="w-full md:w-auto bg-red-800 text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-700 transition-colors shadow-lg flex items-center justify-center gap-2">
+                <i class="fas fa-plus-circle"></i>
+                <span>Adicionar Livro</span>
+            </button>
+        </div>
+        
+        <!-- ID do Usuário -->
+        <div id="userInfo" class="text-center mb-4 text-sm text-gray-500 hidden">
+            <p>Conectado com o ID: <span id="userId" class="font-mono"></span></p>
+        </div>
+
+        <!-- Seção de Livros -->
+        <div id="bookList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <!-- Cards de livros serão inseridos aqui -->
+        </div>
+        
+        <div id="loadingState" class="text-center py-10">
+            <p class="text-gray-500">Carregando seus livros...</p>
+        </div>
+
+        <div id="emptyState" class="text-center py-20 hidden">
+            <i class="fas fa-book-open text-6xl text-gray-600"></i>
+            <h3 class="text-2xl font-semibold mt-4 text-white">Sua estante está vazia</h3>
+            <p class="text-gray-500 mt-2">Clique em "Adicionar Livro" para começar sua coleção!</p>
+        </div>
+
+    </div>
+
+    <!-- Modal para Adicionar/Editar Livro -->
+    <div id="bookModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-700">
+            <form id="bookForm" class="p-6">
+                <h2 id="modalTitle" class="text-2xl font-bold mb-6 text-white">Adicionar Novo Livro</h2>
+                <input type="hidden" id="bookId">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Coluna da Esquerda: Campos de Texto -->
+                    <div>
+                        <div class="mb-4">
+                            <label for="title" class="block mb-1 font-semibold text-gray-300">Título</label>
+                            <input type="text" id="title" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="author" class="block mb-1 font-semibold text-gray-300">Autor</label>
+                            <input type="text" id="author" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600" required>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label for="publisher" class="block mb-1 font-semibold text-gray-300">Editora</label>
+                                <input type="text" id="publisher" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
+                            </div>
+                            <div>
+                                <label for="pubYear" class="block mb-1 font-semibold text-gray-300">Ano</label>
+                                <input type="number" id="pubYear" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
+                            </div>
+                        </div>
+                         <div class="mb-4">
+                            <label for="coverUrl" class="block mb-1 font-semibold text-gray-300">URL da Capa</label>
+                            <input type="url" id="coverUrl" placeholder="https://exemplo.com/capa.jpg" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
+                        </div>
+                    </div>
+
+                    <!-- Coluna da Direita: Avaliação e Resumo -->
+                    <div>
+                       <div class="mb-4">
+                            <label class="block mb-2 font-semibold text-gray-300">Sua Avaliação</label>
+                            <div class="star-rating flex flex-row-reverse justify-end items-center">
+                                <input type="radio" id="star5" name="rating" value="5"><label for="star5" title="5 estrelas">★</label>
+                                <input type="radio" id="star4" name="rating" value="4"><label for="star4" title="4 estrelas">★</label>
+                                <input type="radio" id="star3" name="rating" value="3"><label for="star3" title="3 estrelas">★</label>
+                                <input type="radio" id="star2" name="rating" value="2"><label for="star2" title="2 estrelas">★</label>
+                                <input type="radio" id="star1" name="rating" value="1"><label for="star1" title="1 estrela">★</label>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                             <div class="flex justify-between items-center mb-1">
+                                <label for="summary" class="block font-semibold text-gray-300">Resumo / Anotações</label>
+                                <button type="button" id="generateSummaryBtn" class="text-sm text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors">
+                                    <i class="fas fa-wand-magic-sparkles"></i>
+                                    <span id="generateBtnText">Gerar com IA</span>
+                                </button>
+                            </div>
+                            <textarea id="summary" rows="6" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-300 focus:ring-2 focus:ring-red-600"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botões do formulário -->
+                <div class="flex justify-end gap-4 mt-6">
+                    <button type="button" id="cancelBtn" class="py-2 px-4 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600">Cancelar</button>
+                    <button type="submit" class="py-2 px-6 bg-red-800 text-white font-semibold rounded-lg hover:bg-red-700">Salvar Livro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal de Confirmação de Exclusão -->
+    <div id="deleteConfirmationModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="bg-gray-900 rounded-lg shadow-xl w-full max-w-sm border border-gray-700">
+            <div class="p-6 text-center">
+                <i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-4"></i>
+                <h3 class="text-xl font-bold mb-2 text-white">Confirmar Exclusão</h3>
+                <p class="text-gray-400 mb-6">Você tem certeza que quer excluir este livro? Esta ação não pode ser desfeita.</p>
+                <div class="flex justify-center gap-4">
+                     <button id="cancelDeleteBtn" class="py-2 px-4 bg-gray-700 rounded-lg hover:bg-gray-600">Cancelar</button>
+                     <button id="confirmDeleteBtn" class="py-2 px-6 bg-red-700 text-white font-semibold rounded-lg hover:bg-red-800">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Módulo do Firebase -->
+    <script type="module">
+        // Importe as funções necessárias do Firebase SDK (versão atualizada)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, query, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+
+        // CONFIGURAÇÃO DO FIREBASE (fornecida pelo usuário)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCW7mk6z_ofpngUoQXkuPDsdfpUX40zGoI",
+            authDomain: "diario-de-livros-da-gatinha.firebaseapp.com",
+            projectId: "diario-de-livros-da-gatinha",
+            storageBucket: "diario-de-livros-da-gatinha.firebasestorage.app",
+            messagingSenderId: "150340409712",
+            appId: "1:150340409712:web:0bf33685d9ae61b91f97b5",
+            measurementId: "G-TB2L9WB1VB"
+        };
+
+        // Variáveis globais
+        let app, auth, db, userId;
+        let booksUnsubscribe = null;
+        let booksCache = [];
+        let bookToDeleteId = null;
+
+        // Elementos da UI
+        const bookModal = document.getElementById('bookModal');
+        const bookForm = document.getElementById('bookForm');
+        const bookList = document.getElementById('bookList');
+        const searchInput = document.getElementById('searchInput');
+        const emptyState = document.getElementById('emptyState');
+        const loadingState = document.getElementById('loadingState');
+        const deleteConfirmationModal = document.getElementById('deleteConfirmationModal');
+        const generateSummaryBtn = document.getElementById('generateSummaryBtn');
+
+
+        // Função para chamar a API do Gemini
+        async function callGeminiAPI(prompt) {
+            const apiKey = ""; // A chave da API é injetada pelo ambiente
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            
+            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            const payload = { contents: chatHistory };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`A requisição para a API falhou com status ${response.status}: ${errorBody}`);
+                }
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    console.error("Resposta da API em formato inesperado:", result);
+                    return null;
+                }
+            } catch (error) {
+                console.error("Erro ao chamar a API Gemini:", error);
+                return null;
+            }
+        }
+
+
+        // Manipulador para gerar resumo com IA
+        async function handleGenerateSummary() {
+            const title = document.getElementById('title').value;
+            const author = document.getElementById('author').value;
+
+            if (!title || !author) {
+                alert("Por favor, preencha o título e o autor do livro para gerar um resumo.");
+                return;
+            }
+
+            const generateBtnText = document.getElementById('generateBtnText');
+            const summaryTextarea = document.getElementById('summary');
+            const originalBtnText = generateBtnText.textContent;
+
+            // Define o estado de carregamento
+            generateBtnText.textContent = 'Gerando...';
+            generateSummaryBtn.disabled = true;
+            generateSummaryBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            const prompt = `Crie um resumo conciso e envolvente, com no máximo 3 parágrafos, para o livro "${title}" de ${author}. O resumo deve capturar os temas principais e o tom da obra, sem revelar spoilers importantes.`;
+            const generatedSummary = await callGeminiAPI(prompt);
+
+            if (generatedSummary) {
+                summaryTextarea.value = generatedSummary;
+            } else {
+                alert("Não foi possível gerar o resumo. Tente novamente mais tarde.");
+            }
+            
+            // Reseta o estado do botão
+            generateBtnText.textContent = originalBtnText;
+            generateSummaryBtn.disabled = false;
+            generateSummaryBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+
+        // Inicializa o App
+        function initializeFirebase() {
+            if (!firebaseConfig || !firebaseConfig.apiKey) {
+                 loadingState.innerHTML = '<p class="text-red-500 font-bold">Erro: A configuração do Firebase não foi encontrada ou está incompleta.</p>';
+                 return;
+            }
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            handleAuthentication();
+        }
+
+        // Autenticação
+        function handleAuthentication() {
+            onAuthStateChanged(auth, user => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('userId').textContent = userId;
+                    document.getElementById('userInfo').classList.remove('hidden');
+                    loadBooks();
+                } else {
+                    signInAnonymously(auth).catch(error => {
+                        console.error("Erro no login anônimo:", error);
+                        if (error.code === 'auth/configuration-not-found') {
+                            loadingState.innerHTML = `
+                                <div class="text-red-400 font-bold p-4 border border-red-500 rounded-lg bg-red-900/20 max-w-2xl mx-auto">
+                                    <p class="text-lg mb-2">Erro de Configuração!</p>
+                                    <p>Parece que a autenticação anônima não está ativada no seu projeto Firebase.</p>
+                                    <p class="mt-2"><b>Como resolver:</b></p>
+                                    <ol class="list-decimal list-inside text-left max-w-md mx-auto mt-1">
+                                        <li>Vá para o seu projeto no <a href="https://console.firebase.google.com/" target="_blank" class="underline hover:text-white">Console do Firebase</a>.</li>
+                                        <li>No menu, clique em <b>Build > Authentication</b>.</li>
+                                        <li>Vá para a aba <b>Sign-in method</b> (Método de login).</li>
+                                        <li>Clique em <b>Anônimo</b> na lista e ative o provedor.</li>
+                                        <li>Salve e depois atualize esta página.</li>
+                                    </ol>
+                                </div>
+                            `;
+                        } else {
+                             loadingState.innerHTML = '<p class="text-red-500 font-bold">Não foi possível conectar ao serviço. Verifique o console para mais detalhes.</p>';
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Carrega os livros do Firestore
+        function loadBooks() {
+            if (booksUnsubscribe) booksUnsubscribe();
+            
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const booksCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/books`);
+            const q = query(booksCollectionRef);
+
+            booksUnsubscribe = onSnapshot(q, (snapshot) => {
+                loadingState.classList.add('hidden');
+                booksCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderBooks(booksCache);
+                
+                if (booksCache.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    bookList.classList.add('hidden');
+                } else {
+                    emptyState.classList.add('hidden');
+                    bookList.classList.remove('hidden');
+                }
+                
+            }, (error) => {
+                console.error("Erro ao carregar livros: ", error);
+                // **CORREÇÃO: Adiciona mensagem de erro detalhada para o usuário sobre permissões**
+                if (error.code === 'permission-denied') {
+                     loadingState.innerHTML = `
+                        <div class="text-red-400 font-bold p-4 border border-red-500 rounded-lg bg-red-900/20 max-w-2xl mx-auto">
+                            <p class="text-lg mb-2">Erro de Permissão!</p>
+                            <p>O aplicativo não conseguiu ler seus dados do banco de dados.</p>
+                            <p class="mt-2"><b>Causa Provável:</b> As regras de segurança do Firestore não foram configuradas corretamente.</p>
+                            <p class="mt-2"><b>Como resolver:</b></p>
+                            <ol class="list-decimal list-inside text-left max-w-lg mx-auto mt-1">
+                                <li>Vá para o seu projeto no <a href="https://console.firebase.google.com/" target="_blank" class="underline hover:text-white">Console do Firebase</a>.</li>
+                                <li>No menu, clique em <b>Build > Firestore Database</b>.</li>
+                                <li>Vá para a aba <b>Regras</b> (Rules).</li>
+                                <li>Copie e cole as regras abaixo, substituindo todo o conteúdo existente:</li>
+                                <pre class="bg-gray-950 p-2 rounded mt-2 text-sm text-left whitespace-pre-wrap"><code>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /artifacts/{appId}/users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}</code></pre>
+                                <li>Clique em <b>Publicar</b> (Publish) e atualize esta página.</li>
+                            </ol>
+                        </div>
+                    `;
+                } else {
+                    loadingState.innerHTML = `<p class="text-red-500 font-bold">Ocorreu um erro ao carregar os livros. Código: ${error.code}</p>`;
+                }
+            });
+        }
+
+        // Renderiza os livros na tela
+        function renderBooks(booksToRender) {
+            bookList.innerHTML = '';
+            booksToRender.forEach(book => {
+                const pubYear = book.pubYear ? `(${book.pubYear})` : '';
+                const ratingStars = '★'.repeat(book.rating || 0) + '☆'.repeat(5 - (book.rating || 0));
+                
+                const card = document.createElement('div');
+                card.className = 'bg-gray-900 rounded-lg shadow-lg overflow-hidden transform hover:scale-105 transition-transform duration-300 book-card border border-gray-800';
+                card.innerHTML = `
+                    <img src="${book.coverUrl || 'https://placehold.co/400x600/b91c1c/ffffff?text=Capa'}" alt="Capa de ${book.title}" class="w-full h-64 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x600/1f2937/ffffff?text=Erro!';">
+                    <div class="p-4 flex flex-col flex-grow">
+                        <div>
+                            <h3 class="text-xl font-bold text-white">${book.title}</h3>
+                            <p class="text-gray-400 mb-2">${book.author} ${pubYear}</p>
+                            <p class="text-amber-500 text-lg mb-2" title="${book.rating || 0} de 5 estrelas">${ratingStars}</p>
+                            <p class="text-sm text-gray-400 flex-grow">${(book.summary || '').substring(0, 100)}${ (book.summary || '').length > 100 ? '...' : ''}</p>
+                        </div>
+                         <div class="mt-4 flex justify-end gap-3">
+                            <button class="edit-btn text-gray-400 hover:text-white transition-colors" data-id="${book.id}"><i class="fas fa-edit"></i></button>
+                            <button class="delete-btn text-gray-400 hover:text-red-500 transition-colors" data-id="${book.id}"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+                bookList.appendChild(card);
+            });
+        }
+        
+        // Abre e fecha o modal de livro
+        function toggleModal(show, book = null) {
+            bookForm.reset();
+            document.getElementById('bookId').value = '';
+            document.querySelectorAll('.star-rating input').forEach(r => r.checked = false);
+
+            if (show) {
+                if (book) {
+                    document.getElementById('modalTitle').textContent = 'Editar Livro';
+                    document.getElementById('bookId').value = book.id;
+                    document.getElementById('title').value = book.title;
+                    document.getElementById('author').value = book.author;
+                    document.getElementById('publisher').value = book.publisher || '';
+                    document.getElementById('pubYear').value = book.pubYear || '';
+                    document.getElementById('coverUrl').value = book.coverUrl || '';
+                    document.getElementById('summary').value = book.summary || '';
+                    if (book.rating) {
+                        document.getElementById(`star${book.rating}`).checked = true;
+                    }
+                } else {
+                    document.getElementById('modalTitle').textContent = 'Adicionar Novo Livro';
+                }
+                bookModal.classList.remove('hidden');
+            } else {
+                bookModal.classList.add('hidden');
+            }
+        }
+        
+        // Abre e fecha o modal de confirmação de exclusão
+        function toggleDeleteModal(show, bookId = null) {
+            if(show) {
+                bookToDeleteId = bookId;
+                deleteConfirmationModal.classList.remove('hidden');
+            } else {
+                bookToDeleteId = null;
+                deleteConfirmationModal.classList.add('hidden');
+            }
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('addBookBtn').addEventListener('click', () => toggleModal(true));
+        document.getElementById('cancelBtn').addEventListener('click', () => toggleModal(false));
+        generateSummaryBtn.addEventListener('click', handleGenerateSummary);
+
+        bookForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('bookId').value;
+            const ratingInput = document.querySelector('input[name="rating"]:checked');
+            
+            const bookData = {
+                title: document.getElementById('title').value,
+                author: document.getElementById('author').value,
+                publisher: document.getElementById('publisher').value,
+                pubYear: document.getElementById('pubYear').value,
+                coverUrl: document.getElementById('coverUrl').value,
+                summary: document.getElementById('summary').value,
+                rating: ratingInput ? parseInt(ratingInput.value) : 0,
+            };
+
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const collectionPath = `artifacts/${appId}/users/${userId}/books`;
+
+            try {
+                if (id) {
+                    await setDoc(doc(db, collectionPath, id), bookData, { merge: true });
+                } else {
+                    await addDoc(collection(db, collectionPath), bookData);
+                }
+                toggleModal(false);
+            } catch (error) {
+                console.error("Erro ao salvar livro: ", error);
+            }
+        });
+        
+        bookList.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.edit-btn');
+            const deleteBtn = e.target.closest('.delete-btn');
+
+            if (editBtn) {
+                const book = booksCache.find(b => b.id === editBtn.dataset.id);
+                if(book) toggleModal(true, book);
+            }
+            if (deleteBtn) {
+                toggleDeleteModal(true, deleteBtn.dataset.id);
+            }
+        });
+
+        document.getElementById('cancelDeleteBtn').addEventListener('click', () => toggleDeleteModal(false));
+        document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+            if (bookToDeleteId) {
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/books`, bookToDeleteId));
+                    toggleDeleteModal(false);
+                } catch (error) {
+                    console.error("Erro ao excluir livro: ", error);
+                }
+            }
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredBooks = booksCache.filter(book => 
+                book.title.toLowerCase().includes(searchTerm) || 
+                book.author.toLowerCase().includes(searchTerm)
+            );
+            renderBooks(filteredBooks);
+        });
+
+        // Inicia tudo
+        initializeFirebase();
+
+    </script>
+</body>
+</html>
