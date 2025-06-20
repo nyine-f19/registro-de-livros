@@ -209,7 +209,7 @@
 
         // Função para chamar a API do Gemini
         async function callGeminiAPI(prompt) {
-            const apiKey = ""; // A chave da API é injetada pelo ambiente
+            const apiKey = "AIzaSyB5ORidYB337wVV4WUvtdmy2qIe9QJY4dA";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
             
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
