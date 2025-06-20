@@ -130,10 +130,11 @@
                             <input type="text" id="author" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600" required>
                         </div>
                         <div class="mb-4">
-                            <label for="category" class="block mb-1 font-semibold text-gray-300">Categoria</label>
-                            <select id="category" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
-                                <!-- Opções de categoria serão inseridas aqui -->
-                            </select>
+                            <label for="categoryInput" class="block mb-1 font-semibold text-gray-300">Categoria</label>
+                            <input type="text" id="categoryInput" list="categoryList" placeholder="Escreva ou selecione uma categoria" class="w-full p-2 border rounded-lg bg-gray-800 border-gray-700 text-gray-200 focus:ring-2 focus:ring-red-600">
+                            <datalist id="categoryList">
+                                <!-- Opções de categoria dinâmicas -->
+                            </datalist>
                         </div>
                         <div class="grid grid-cols-2 gap-4 mb-4">
                             <div>
@@ -230,9 +231,7 @@
         let booksCache = [];
         let bookToDeleteId = null;
         let uploadedCoverDataUrl = null;
-        let activeCategory = 'Todos'; // Nova variável para o filtro ativo
-
-        const categories = ['Ficção', 'Não Ficção', 'Romance', 'Fantasia', 'Suspense', 'Biografia', 'Poesia', 'Outro'];
+        let activeCategory = 'Todos'; // Variável para o filtro ativo
 
         // Elementos da UI
         const mainContent = document.getElementById('main-content');
@@ -255,7 +254,7 @@
         const generateSummaryBtn = document.getElementById('generateSummaryBtn');
         const coverImageFile = document.getElementById('coverImageFile');
         const coverPreview = document.getElementById('coverPreview');
-        const categorySelect = document.getElementById('category');
+        const categoryInput = document.getElementById('categoryInput');
 
 
         // Função para chamar a API do Gemini
@@ -318,7 +317,6 @@
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            renderCategoryUI();
             handleAuthentication();
         }
 
@@ -390,10 +388,13 @@
         
         // --- LÓGICA DE CATEGORIAS ---
         function renderCategoryUI() {
-            // Renderiza os botões de filtro
+            // Obtém categorias únicas do cache de livros
+            const uniqueCategories = [...new Set(booksCache.map(book => book.category).filter(Boolean))];
+            
+            // Renderiza os botões de filtro dinamicamente
             categoryFiltersContainer.innerHTML = '';
-            const allCategories = ['Todos', ...categories];
-            allCategories.forEach(cat => {
+            const allFilterCategories = ['Todos', ...uniqueCategories];
+            allFilterCategories.forEach(cat => {
                 const btn = document.createElement('button');
                 btn.textContent = cat;
                 btn.dataset.category = cat;
@@ -404,8 +405,9 @@
                 categoryFiltersContainer.appendChild(btn);
             });
 
-            // Preenche o select do modal
-            categorySelect.innerHTML = categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+            // Preenche o datalist do modal para sugestões
+            const categoryList = document.getElementById('categoryList');
+            categoryList.innerHTML = uniqueCategories.map(cat => `<option value="${cat}"></option>`).join('');
         }
         
         // --- LÓGICA DOS LIVROS ---
@@ -417,7 +419,7 @@
                 filteredBooks = filteredBooks.filter(book => book.category === activeCategory);
             }
 
-            // 2. Filtrar por pesquisa
+            // 2. Filtrar por pesquisa de texto
             const searchTerm = searchInput.value.toLowerCase();
             if (searchTerm) {
                 filteredBooks = filteredBooks.filter(book => 
@@ -443,6 +445,7 @@
             booksUnsubscribe = onSnapshot(q, (snapshot) => {
                 loadingState.classList.add('hidden');
                 booksCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderCategoryUI(); // Atualiza a UI das categorias com base nos livros carregados
                 applyFiltersAndRender();
                 
             }, (error) => {
@@ -495,7 +498,7 @@
             coverPreview.src = '';
             uploadedCoverDataUrl = null;
             coverImageFile.value = '';
-            categorySelect.value = categories[0];
+            categoryInput.value = '';
 
             if (show) {
                 if (book) {
@@ -506,7 +509,7 @@
                     document.getElementById('publisher').value = book.publisher || '';
                     document.getElementById('pubYear').value = book.pubYear || '';
                     document.getElementById('summary').value = book.summary || '';
-                    categorySelect.value = book.category || categories[0];
+                    categoryInput.value = book.category || '';
 
                     if (book.rating) document.getElementById(`star${book.rating}`).checked = true;
                     if (book.coverUrl) {
@@ -582,7 +585,7 @@
                 coverUrl: coverUrlValue,
                 summary: document.getElementById('summary').value,
                 rating: ratingInput ? parseInt(ratingInput.value) : 0,
-                category: categorySelect.value
+                category: categoryInput.value.trim()
             };
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionPath = `artifacts/${appId}/users/${userId}/books`;
